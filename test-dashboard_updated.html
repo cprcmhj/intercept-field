@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intercept — Operations Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080b0f; --surface:#0e1319; --panel:#121820; --border:#1c2535;
+  --accent:#00d4ff; --green:#00e87a; --warn:#ffab00; --danger:#ff4060; --purple:#7c6cfc;
+  --text:#dde6f0; --muted:#4a5a6e; --mono:'Barlow Condensed',sans-serif; --body:'Barlow',sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--text); font-family:var(--body); font-size:14px; }
+body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px); }
+
+.header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:56px;
+  background:var(--surface); border-bottom:1px solid var(--border); position:relative; z-index:100; }
+.header-left { display:flex; align-items:center; gap:16px; }
+.logo { font-family:var(--mono); font-size:22px; font-weight:800; letter-spacing:0.08em; color:#fff; text-transform:uppercase; }
+.logo span { color:var(--accent); }
+.project-tag { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.15em; color:var(--muted);
+  text-transform:uppercase; padding:3px 10px; border:1px solid var(--border); border-radius:3px; }
+.header-right { display:flex; align-items:center; gap:24px; }
+.live-indicator { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px;
+  font-weight:600; color:var(--green); letter-spacing:0.1em; text-transform:uppercase; }
+.live-dot { width:8px; height:8px; background:var(--green); border-radius:50%;
+  box-shadow:0 0 8px var(--green); animation:livepulse 1.5s ease-in-out infinite; }
+@keyframes livepulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+.clock { font-family:var(--mono); font-size:15px; font-weight:600; color:var(--text); letter-spacing:0.05em; }
+.refresh-btn { background:var(--border); border:1px solid #2a3545; border-radius:4px; color:var(--muted);
+  font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase;
+  padding:6px 14px; cursor:pointer; transition:all 0.15s; }
+.refresh-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+.stat-bar { display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--border); background:var(--surface); }
+.stat-item { padding:12px 24px; border-right:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+.stat-item:last-child { border-right:none; }
+.stat-icon { font-size:22px; line-height:1; opacity:0.7; }
+.stat-val { font-family:var(--mono); font-size:28px; font-weight:800; line-height:1; color:#fff; }
+.stat-val.green { color:var(--green); } .stat-val.warn { color:var(--warn); }
+.stat-val.danger { color:var(--danger); } .stat-val.purple { color:var(--purple); }
+.stat-label { font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
+
+.main { display:grid; grid-template-columns:1fr 380px; height:calc(100vh - 56px - 54px); }
+#map { width:100%; height:100%; }
+
+.right-panel { border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; background:var(--panel); }
+.tabs { display:flex; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.tab { flex:1; padding:12px 8px; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--muted); text-align:center; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab-content { display:none; flex:1; overflow-y:auto; padding:16px; }
+.tab-content.active { display:block; }
+.tab-content::-webkit-scrollbar { width:4px; }
+.tab-content::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.section-hdr { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
+.count-badge { background:var(--border); border-radius:10px; padding:1px 8px; font-size:11px; color:var(--text); }
+
+.session-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px;
+  margin-bottom:10px; cursor:pointer; transition:border-color 0.15s; position:relative; overflow:hidden; }
+.session-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--green); }
+.session-card.stale::before { background:var(--warn); }
+.session-card:hover { border-color:#2a3545; }
+.sc-train { font-family:var(--mono); font-size:20px; font-weight:800; color:#fff; margin-bottom:6px; }
+.sc-row { display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--muted); margin:3px 0; }
+.sc-row span { color:var(--text); font-family:var(--mono); font-size:12px; }
+.sc-badge { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.1em; padding:2px 8px; border-radius:3px; text-transform:uppercase; }
+.badge-active { background:rgba(0,232,122,0.12); color:var(--green); border:1px solid rgba(0,232,122,0.25); }
+.badge-stale  { background:rgba(255,171,0,0.12);  color:var(--warn);  border:1px solid rgba(255,171,0,0.25); }
+
+.analytics-table { width:100%; border-collapse:collapse; }
+.analytics-table th { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--muted); text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+.analytics-table td { padding:10px; font-size:13px; border-bottom:1px solid rgba(28,37,53,0.5); vertical-align:middle; }
+.analytics-table tr:last-child td { border-bottom:none; }
+.analytics-table tr:hover td { background:rgba(255,255,255,0.02); }
+.train-num-cell { font-family:var(--mono); font-size:16px; font-weight:800; color:#fff; }
+.num-cell { font-family:var(--mono); font-weight:600; }
+.num-cell.green { color:var(--green); } .num-cell.danger { color:var(--danger); } .num-cell.warn { color:var(--warn); }
+
+.flagged-card { background:var(--surface); border:1px solid rgba(255,64,96,0.2); border-radius:8px; padding:14px; margin-bottom:10px; }
+.fc-train { font-family:var(--mono); font-size:18px; font-weight:800; color:var(--danger); margin-bottom:8px; }
+.fc-reason { font-size:12px; color:#8a9ab0; margin-bottom:10px; line-height:1.5; }
+.fc-meta { font-family:var(--mono); font-size:11px; color:var(--muted); margin:2px 0; }
+.fc-meta span { color:var(--text); }
+.mark-reviewed-btn { background:transparent; border:1px solid var(--border); border-radius:4px; color:var(--muted);
+  font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  padding:5px 12px; cursor:pointer; margin-top:10px; transition:all 0.15s; width:100%; }
+.mark-reviewed-btn:hover { border-color:var(--green); color:var(--green); }
+.mark-reviewed-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+.empty-state { text-align:center; padding:40px 20px; color:var(--muted); }
+.empty-icon { font-size:32px; margin-bottom:12px; opacity:0.5; }
+.empty-text { font-size:13px; }
+
+.legend { position:absolute; bottom:40px; left:12px; z-index:500;
+  background:rgba(8,11,15,0.85); border:1px solid var(--border); border-radius:8px;
+  padding:12px 14px; backdrop-filter:blur(8px); }
+.legend-title { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.15em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.legend-item { display:flex; align-items:center; gap:8px; margin:4px 0; }
+.legend-line { width:20px; height:3px; border-radius:2px; flex-shrink:0; }
+.legend-label { font-family:var(--mono); font-size:11px; color:var(--text); }
+
+.refresh-bar { height:3px; background:var(--border); position:relative; overflow:hidden; flex-shrink:0; }
+.refresh-progress { height:100%; background:linear-gradient(90deg,var(--accent),var(--purple));
+  width:100%; transform-origin:left; animation:rcd 30s linear infinite; }
+@keyframes rcd { 0%{transform:scaleX(1)} 100%{transform:scaleX(0)} }
+.last-refresh { font-family:var(--mono); font-size:11px; color:var(--muted); text-align:center;
+  padding:6px; border-top:1px solid var(--border); flex-shrink:0; }
+
+.gm-style .gm-style-iw-c { background:#121820 !important; border:1px solid #1c2535 !important; border-radius:8px !important; padding:0 !important; }
+.gm-style .gm-style-iw-d { overflow:hidden !important; }
+.gm-style .gm-style-iw-t::after { background:#121820 !important; }
+.gm-style-iw-tc::after { background:#121820 !important; }
+.gm-ui-hover-effect { filter:invert(1) !important; }
+.iw-content { padding:14px; }
+.iw-train { font-family:var(--mono); font-size:22px; font-weight:800; color:#fff; margin-bottom:6px; }
+.iw-row { font-size:12px; color:#4a5a6e; margin:3px 0; }
+.iw-row span { color:#dde6f0; }
+.iw-badge { display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700;
+  letter-spacing:0.1em; padding:2px 8px; border-radius:3px; margin-top:8px; }
+.iw-active { background:rgba(0,232,122,0.15); color:#00e87a; border:1px solid rgba(0,232,122,0.3); }
+.iw-stale  { background:rgba(255,171,0,0.15);  color:#ffab00; border:1px solid rgba(255,171,0,0.3); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">INTER<span>CEPT</span></div>
+    <div class="project-tag">NJT · MVI Operations</div>
+  </div>
+  <div class="header-right">
+    <div class="live-indicator"><div class="live-dot"></div>Live</div>
+    <div class="clock" id="clock">--:--:-- ET</div>
+    <button class="refresh-btn" onclick="fetchAll()">↺ Refresh</button>
+  </div>
+</div>
+
+<div class="stat-bar">
+  <div class="stat-item"><div class="stat-icon">🚆</div><div><div class="stat-val green" id="stat-active">--</div><div class="stat-label">Active Sessions</div></div></div>
+  <div class="stat-item"><div class="stat-icon">⚠️</div><div><div class="stat-val warn" id="stat-stale">--</div><div class="stat-label">Stale Devices</div></div></div>
+  <div class="stat-item"><div class="stat-icon">🚩</div><div><div class="stat-val danger" id="stat-flagged">--</div><div class="stat-label">Flagged Sessions</div></div></div>
+  <div class="stat-item"><div class="stat-icon">📊</div><div><div class="stat-val purple" id="stat-trains">--</div><div class="stat-label">Trains Tracked</div></div></div>
+</div>
+
+<div class="main">
+  <div style="position:relative;">
+    <div id="map"></div>
+    <div class="legend">
+      <div class="legend-title">NJT Rail Lines</div>
+      <div class="legend-item"><div class="legend-line" style="background:#2176AE"></div><div class="legend-label">NEC / NJCL</div></div>
+      <div class="legend-item"><div class="legend-line" style="background:#F7A81B"></div><div class="legend-label">Raritan Valley</div></div>
+      <div class="legend-item"><div class="legend-line" style="background:#A05EB5"></div><div class="legend-label">Morris & Essex</div></div>
+      <div class="legend-item"><div class="legend-line" style="background:#EE3A43"></div><div class="legend-label">Main / Bergen / Pascack</div></div>
+      <div class="legend-item"><div class="legend-line" style="background:#F15A22"></div><div class="legend-label">Port Jervis</div></div>
+      <div class="legend-item"><div class="legend-line" style="background:#00A8E0"></div><div class="legend-label">Atlantic City</div></div>
+    </div>
+    <div class="refresh-bar" style="position:absolute;bottom:0;left:0;right:0;z-index:500;">
+      <div class="refresh-progress" id="refresh-progress"></div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('sessions')">Sessions</div>
+      <div class="tab" onclick="switchTab('analytics')">Analytics</div>
+      <div class="tab" onclick="switchTab('flagged')">Flagged</div>
+    </div>
+    <div class="tab-content active" id="tab-sessions">
+      <div class="section-hdr">Active MVI Devices <span class="count-badge" id="sessions-count">0</span></div>
+      <div id="sessions-list"><div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">Loading...</div></div></div>
+    </div>
+    <div class="tab-content" id="tab-analytics">
+      <div class="section-hdr">Per-Train Session Stats <span class="count-badge" id="analytics-count">0</span></div>
+      <table class="analytics-table">
+        <thead><tr><th>Train</th><th>Total</th><th>Clean</th><th>Killed</th><th>Superseded</th></tr></thead>
+        <tbody id="analytics-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="tab-content" id="tab-flagged">
+      <div class="section-hdr">Needs Review <span class="count-badge" id="flagged-count">0</span></div>
+      <div id="flagged-list"><div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">No flagged sessions pending review</div></div></div>
+    </div>
+    <div class="last-refresh">Last refresh: <span id="last-refresh-time">--</span></div>
+  </div>
+</div>
+
+<!-- REPLACE YOUR_GOOGLE_MAPS_KEY below -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZOnekJdqWpBZxIywkZHFVmzAVcEmjwFI&callback=initMap" async defer></script>
+
+<script>
+// ─── CONFIG — update these two values ────────────────────────
+const BASE_URL = "https://us-east1-intercept-staging-enviro-55e4b.cloudfunctions.net";
+const API_KEY  = "PEOE9hJImdGUm2nKgzMmHtAa092BcWD3";   // same key set in Secret Manager
+// ─────────────────────────────────────────────────────────────
+
+const HEADERS  = { "Content-Type":"application/json", "x-api-key": API_KEY };
+const REFRESH_MS = 30000;
+let map, transitLayer, markers = {}, infoWindows = {};
+
+const NJT_LINES = [
+  { name:"Northeast Corridor", color:"#2176AE", weight:3,
+    coords:[{lat:40.7506,lng:-73.9935},{lat:40.7345,lng:-74.1743},{lat:40.6602,lng:-74.2991},{lat:40.6283,lng:-74.3119},{lat:40.5718,lng:-74.3244},{lat:40.5020,lng:-74.3975},{lat:40.4869,lng:-74.4448},{lat:40.4406,lng:-74.5235},{lat:40.3766,lng:-74.5965},{lat:40.3161,lng:-74.6217},{lat:40.2564,lng:-74.7012},{lat:40.2151,lng:-74.7627}]},
+  { name:"North Jersey Coast", color:"#2176AE", weight:3,
+    coords:[{lat:40.7506,lng:-73.9935},{lat:40.7345,lng:-74.1743},{lat:40.6602,lng:-74.2991},{lat:40.5148,lng:-74.2721},{lat:40.4871,lng:-74.2799},{lat:40.4148,lng:-74.2279},{lat:40.3043,lng:-73.9888},{lat:40.2388,lng:-74.0002},{lat:40.1793,lng:-74.0213},{lat:40.1071,lng:-74.0502},{lat:40.0759,lng:-74.0465}]},
+  { name:"Raritan Valley", color:"#F7A81B", weight:3,
+    coords:[{lat:40.7345,lng:-74.1743},{lat:40.6962,lng:-74.2951},{lat:40.6493,lng:-74.3568},{lat:40.6262,lng:-74.4021},{lat:40.5676,lng:-74.5393},{lat:40.5765,lng:-74.6096},{lat:40.5887,lng:-74.6804},{lat:40.6347,lng:-74.8173},{lat:40.6676,lng:-74.8943}]},
+  { name:"Morris & Essex", color:"#A05EB5", weight:3,
+    coords:[{lat:40.7357,lng:-74.0281},{lat:40.7614,lng:-74.0754},{lat:40.7390,lng:-74.1720},{lat:40.7155,lng:-74.3583},{lat:40.7652,lng:-74.4324},{lat:40.7931,lng:-74.4829},{lat:40.8222,lng:-74.5551},{lat:40.8826,lng:-74.5593},{lat:40.8543,lng:-74.8432}]},
+  { name:"Main Line", color:"#EE3A43", weight:3,
+    coords:[{lat:40.7357,lng:-74.0281},{lat:40.7614,lng:-74.0754},{lat:40.8048,lng:-74.0818},{lat:40.8357,lng:-74.1047},{lat:40.9151,lng:-74.1721},{lat:40.9784,lng:-74.1276},{lat:41.0265,lng:-74.1199},{lat:41.0618,lng:-74.1099},{lat:41.1148,lng:-74.1499}]},
+  { name:"Pascack Valley", color:"#EE3A43", weight:3,
+    coords:[{lat:40.7357,lng:-74.0281},{lat:40.7614,lng:-74.0754},{lat:40.8927,lng:-74.0627},{lat:40.9627,lng:-74.0726},{lat:40.9898,lng:-74.0327},{lat:41.0232,lng:-74.0265},{lat:41.0548,lng:-74.0315},{lat:41.0887,lng:-74.0376},{lat:41.1137,lng:-74.0443}]},
+  { name:"Port Jervis", color:"#F15A22", weight:3,
+    coords:[{lat:40.7506,lng:-73.9935},{lat:40.7614,lng:-74.0754},{lat:41.1148,lng:-74.1499},{lat:41.1793,lng:-74.2376},{lat:41.2451,lng:-74.3254},{lat:41.3052,lng:-74.4321},{lat:41.3759,lng:-74.6932}]},
+  { name:"Atlantic City", color:"#00A8E0", weight:3,
+    coords:[{lat:39.9557,lng:-75.1826},{lat:39.9346,lng:-75.0241},{lat:39.8979,lng:-74.9779},{lat:39.8193,lng:-74.9874},{lat:39.7421,lng:-74.7621},{lat:39.6351,lng:-74.6212},{lat:39.5121,lng:-74.5023},{lat:39.3644,lng:-74.4282}]}
+];
+
+const DARK_STYLE = [
+  {elementType:"geometry",stylers:[{color:"#0a0f15"}]},
+  {elementType:"labels.text.stroke",stylers:[{color:"#0a0f15"}]},
+  {elementType:"labels.text.fill",stylers:[{color:"#4a5a6e"}]},
+  {featureType:"administrative",elementType:"geometry",stylers:[{color:"#1c2535"}]},
+  {featureType:"administrative.locality",elementType:"labels.text.fill",stylers:[{color:"#bdbdbd"}]},
+  {featureType:"poi",stylers:[{visibility:"off"}]},
+  {featureType:"road",elementType:"geometry",stylers:[{color:"#1a2332"}]},
+  {featureType:"road.highway",elementType:"geometry",stylers:[{color:"#1e2d42"}]},
+  {featureType:"transit",elementType:"geometry",stylers:[{color:"#1c2535"}]},
+  {featureType:"transit.station",elementType:"labels.text.fill",stylers:[{color:"#d59563"}]},
+  {featureType:"water",elementType:"geometry",stylers:[{color:"#050d18"}]},
+  {featureType:"landscape",elementType:"geometry",stylers:[{color:"#0d1420"}]}
+];
+
+function updateClock() {
+  document.getElementById("clock").textContent =
+    new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"}) + " ET";
+}
+setInterval(updateClock,1000); updateClock();
+
+function switchTab(name) {
+  const names=["sessions","analytics","flagged"];
+  document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",names[i]===name));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.toggle("active",c.id==="tab-"+name));
+}
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"),{
+    center:{lat:40.45,lng:-74.35}, zoom:8,
+    styles:DARK_STYLE, mapTypeControl:false, streetViewControl:false, fullscreenControl:false,
+    zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_CENTER}
+  });
+  transitLayer = new google.maps.TransitLayer();
+  transitLayer.setMap(map);
+  NJT_LINES.forEach(line => new google.maps.Polyline({
+    path:line.coords, geodesic:true,
+    strokeColor:line.color, strokeOpacity:0.85, strokeWeight:line.weight||3, map
+  }));
+  fetchAll();
+  setInterval(fetchAll, REFRESH_MS);
+}
+
+function updateMarkers(sessions) {
+  const activeIds = new Set(sessions.map(s=>s.sessionId||s.deviceSerial));
+  Object.keys(markers).forEach(id=>{
+    if(!activeIds.has(id)){markers[id].setMap(null);delete markers[id];if(infoWindows[id]){infoWindows[id].close();delete infoWindows[id];}}
+  });
+  sessions.forEach(s => {
+    const lat = s.lat || s.lastLat; const lon = s.lon || s.lastLon;
+    if (!lat||!lon) return;
+    const id    = s.sessionId||s.deviceSerial;
+    const color = s.stale?"#ffab00":"#00d4ff";
+    const icon  = { path:"M-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0",
+      fillColor:color, fillOpacity:0.95, strokeColor:"#ffffff", strokeWeight:2, scale:1,
+      anchor:new google.maps.Point(0,0) };
+    const popup = `<div class="iw-content">
+      <div class="iw-train">Train ${s.trainNumber}</div>
+      <div class="iw-row">Device <span>${s.deviceSerial}</span></div>
+      <div class="iw-row">Line <span>${s.line||"--"}</span></div>
+      <div class="iw-row">Last seen <span>${s.silenceMinutes||0}min ago</span></div>
+      <div class="iw-row">Position <span>${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)}</span></div>
+      <span class="iw-badge ${s.stale?"iw-stale":"iw-active"}">${s.stale?"⚠ STALE":"● ACTIVE"}</span></div>`;
+    if (markers[id]) {
+      markers[id].setPosition({lat:parseFloat(lat),lng:parseFloat(lon)});
+      markers[id].setIcon(icon);
+      if (infoWindows[id]) infoWindows[id].setContent(popup);
+    } else {
+      const marker = new google.maps.Marker({position:{lat:parseFloat(lat),lng:parseFloat(lon)},map,icon,title:`Train ${s.trainNumber}`});
+      const iw = new google.maps.InfoWindow({content:popup,maxWidth:240});
+      marker.addListener("click",()=>{Object.values(infoWindows).forEach(w=>w.close());iw.open(map,marker);});
+      markers[id]=marker; infoWindows[id]=iw;
+    }
+  });
+}
+
+function renderSessions(sessions) {
+  document.getElementById("stat-active").textContent   = sessions.length;
+  document.getElementById("stat-stale").textContent    = sessions.filter(s=>s.stale).length;
+  document.getElementById("sessions-count").textContent = sessions.length;
+  const list = document.getElementById("sessions-list");
+  if (!sessions.length) { list.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No active sessions right now</div></div>`; return; }
+  list.innerHTML = sessions.map(s=>`
+    <div class="session-card ${s.stale?"stale":""}" onclick="focusSession('${s.sessionId||s.deviceSerial}',${s.lat||s.lastLat||0},${s.lon||s.lastLon||0})">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="sc-train">Train ${s.trainNumber}</div>
+        <span class="sc-badge ${s.stale?"badge-stale":"badge-active"}">${s.stale?"⚠ Stale":"● Active"}</span>
+      </div>
+      <div class="sc-row">Device <span>${s.deviceSerial}</span></div>
+      <div class="sc-row">Line <span>${s.line||"--"}</span></div>
+      <div class="sc-row">Last heartbeat <span>${s.silenceMinutes||0} min ago</span></div>
+      <div class="sc-row">Position <span>${s.lat||s.lastLat?"("+parseFloat(s.lat||s.lastLat).toFixed(4)+", "+parseFloat(s.lon||s.lastLon).toFixed(4)+")":"--"}</span></div>
+    </div>`).join("");
+}
+
+function focusSession(id,lat,lon) {
+  if(lat&&lon&&markers[id]){map.setCenter({lat:parseFloat(lat),lng:parseFloat(lon)});map.setZoom(14);Object.values(infoWindows).forEach(w=>w.close());infoWindows[id]?.open(map,markers[id]);}
+}
+
+function renderAnalytics(trains) {
+  document.getElementById("stat-trains").textContent    = trains.length;
+  document.getElementById("analytics-count").textContent = trains.length;
+  if (!trains.length) { document.getElementById("analytics-body").innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">No data yet</td></tr>`; return; }
+  trains.sort((a,b)=>(b.totalSessions||0)-(a.totalSessions||0));
+  document.getElementById("analytics-body").innerHTML = trains.map(t=>`
+    <tr><td class="train-num-cell">${t.trainNumber}</td>
+    <td class="num-cell">${t.totalSessions||0}</td>
+    <td class="num-cell green">${t.cleanEnds||0}</td>
+    <td class="num-cell danger">${t.autoKills||0}</td>
+    <td class="num-cell warn">${t.superseded||0}</td></tr>`).join("");
+}
+
+function renderFlagged(sessions) {
+  document.getElementById("stat-flagged").textContent  = sessions.length;
+  document.getElementById("flagged-count").textContent = sessions.length;
+  const list = document.getElementById("flagged-list");
+  if (!sessions.length) { list.innerHTML=`<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">No flagged sessions pending review</div></div>`; return; }
+  list.innerHTML = sessions.map(s=>`
+    <div class="flagged-card" id="flag-${s.sessionId}">
+      <div class="fc-train">Train ${s.trainNumber||"--"}</div>
+      <div class="fc-reason">${s.reason||s.closeReason||"--"}</div>
+      <div class="fc-meta">Device <span>${s.deviceSerial||"--"}</span></div>
+      <div class="fc-meta">Type <span>${s.closeType||s.reason||"--"}</span></div>
+      <div class="fc-meta">Closed <span>${s.closedAtET||s.createdAtET||"--"}</span></div>
+      <button class="mark-reviewed-btn" onclick="markReviewed('${s.sessionId}')">✓ Mark as Reviewed</button>
+    </div>`).join("");
+}
+
+async function markReviewed(sessionId) {
+  const btn = document.querySelector(`#flag-${sessionId} .mark-reviewed-btn`);
+  if (btn) { btn.disabled=true; btn.textContent="Marking..."; }
+  try {
+    await fetch(`${BASE_URL}/markReviewed`,{
+      method:"POST", headers:HEADERS,
+      body:JSON.stringify({sessionId, reviewedBy:"ops-dashboard"})
+    });
+    const card = document.getElementById(`flag-${sessionId}`);
+    if (card) { card.style.opacity="0.4"; card.style.pointerEvents="none"; if(btn) btn.textContent="✓ Reviewed"; }
+  } catch(e) { if(btn){btn.disabled=false;btn.textContent="✗ Failed — retry";} }
+}
+
+async function fetchAll() {
+  const prog=document.getElementById("refresh-progress");
+  prog.style.animation="none"; prog.offsetHeight; prog.style.animation="";
+  try {
+    const [sRes,aRes,fRes] = await Promise.all([
+      fetch(`${BASE_URL}/activeSessions`,{headers:HEADERS}).then(r=>r.json()),
+      fetch(`${BASE_URL}/analytics`,{headers:HEADERS}).then(r=>r.json()),
+      fetch(`${BASE_URL}/flaggedSessions`,{headers:HEADERS}).then(r=>r.json())
+    ]);
+    const sessions=sRes.sessions||[];
+    renderSessions(sessions);
+    renderAnalytics(aRes.trains||[]);
+    renderFlagged(fRes.sessions||[]);
+    if(map) updateMarkers(sessions);
+    document.getElementById("last-refresh-time").textContent =
+      new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour12:false});
+  } catch(e) {
+    console.error(e);
+    document.getElementById("last-refresh-time").textContent="Error — retrying...";
+  }
+}
+</script>
+</body>
+</html>

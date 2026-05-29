@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intercept — Session Playback</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080b0f; --surface:#0e1319; --panel:#121820; --border:#1c2535;
+  --accent:#00d4ff; --green:#00e87a; --warn:#ffab00; --danger:#ff4060; --purple:#7c6cfc;
+  --text:#dde6f0; --muted:#4a5a6e; --mono:'Barlow Condensed',sans-serif; --body:'Barlow',sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--text); font-family:var(--body); font-size:14px; }
+.header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:56px;
+  background:var(--surface); border-bottom:1px solid var(--border); z-index:100; }
+.logo { font-family:var(--mono); font-size:22px; font-weight:800; color:#fff; text-transform:uppercase; }
+.logo span { color:var(--accent); }
+.project-tag { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.15em;
+  color:var(--muted); text-transform:uppercase; padding:3px 10px; border:1px solid var(--border); border-radius:3px; }
+.main { display:grid; grid-template-columns:1fr 380px; height:calc(100vh - 56px); }
+#map { width:100%; height:100%; }
+.right-panel { border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; background:var(--panel); }
+
+/* LOADER */
+.loader-card { padding:20px; border-bottom:1px solid var(--border); }
+.loader-title { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.15em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+.field { margin-bottom:10px; }
+.field label { font-size:12px; font-weight:600; color:var(--muted); letter-spacing:0.05em; display:block; margin-bottom:5px; }
+.field-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+input, select { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-family:var(--mono); font-size:13px; padding:10px 12px; outline:none;
+  transition:border-color 0.15s; -webkit-appearance:none; }
+input:focus, select:focus { border-color:var(--accent); }
+.search-btn { width:100%; background:linear-gradient(135deg,var(--accent),var(--purple)); border:none;
+  border-radius:6px; color:#000; font-family:var(--mono); font-size:13px; font-weight:800;
+  letter-spacing:0.1em; text-transform:uppercase; padding:12px; cursor:pointer; transition:opacity 0.15s; }
+.search-btn:hover { opacity:0.85; }
+.search-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+/* SESSION PICKER */
+.session-picker { padding:16px 20px; border-bottom:1px solid var(--border); display:none; }
+.session-picker.visible { display:block; }
+.picker-title { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.15em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
+.session-option { background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:all 0.15s; }
+.session-option:hover { border-color:var(--accent); }
+.session-option.selected { border-color:var(--accent); background:rgba(0,212,255,0.06); }
+.so-train { font-family:var(--mono); font-size:16px; font-weight:800; color:#fff; margin-bottom:4px; }
+.so-meta { font-size:12px; color:var(--muted); }
+.so-meta span { color:var(--text); }
+.load-session-btn { width:100%; background:var(--green); border:none; border-radius:6px;
+  color:#000; font-family:var(--mono); font-size:13px; font-weight:800; letter-spacing:0.1em;
+  text-transform:uppercase; padding:10px; cursor:pointer; margin-top:8px; transition:opacity 0.15s; }
+.load-session-btn:hover { opacity:0.85; }
+.load-session-btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+/* SESSION INFO */
+.session-info { padding:16px 20px; border-bottom:1px solid var(--border); display:none; }
+.session-info.visible { display:block; }
+.si-train { font-family:var(--mono); font-size:22px; font-weight:800; color:#fff; margin-bottom:10px; }
+.si-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.si-box { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:10px 12px; }
+.si-val { font-family:var(--mono); font-size:18px; font-weight:800; color:#fff; line-height:1; }
+.si-val.green  { color:var(--green);  }
+.si-val.accent { color:var(--accent); }
+.si-val.purple { color:var(--purple); }
+.si-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-top:3px; }
+
+/* CONTROLS */
+.controls { padding:16px 20px; border-bottom:1px solid var(--border); display:none; }
+.controls.visible { display:block; }
+.scrubber-labels { display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--muted); margin-bottom:6px; }
+.scrubber { width:100%; height:6px; -webkit-appearance:none; appearance:none;
+  background:var(--border); border-radius:99px; outline:none; cursor:pointer; margin-bottom:14px; }
+.scrubber::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px;
+  border-radius:50%; background:var(--accent); border:2px solid #fff; box-shadow:0 0 8px var(--accent); cursor:pointer; }
+.btn-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+.ctrl-btn { background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-family:var(--mono); font-size:12px; font-weight:700;
+  padding:10px 6px; cursor:pointer; text-align:center; transition:all 0.15s; }
+.ctrl-btn:hover { border-color:var(--accent); color:var(--accent); }
+.ctrl-btn.active { background:rgba(0,212,255,0.1); border-color:var(--accent); color:var(--accent); }
+.speed-row { display:flex; align-items:center; gap:8px; }
+.speed-label { font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; }
+.speed-btn { background:var(--surface); border:1px solid var(--border); border-radius:4px;
+  color:var(--muted); font-family:var(--mono); font-size:11px; font-weight:700;
+  padding:4px 10px; cursor:pointer; transition:all 0.15s; }
+.speed-btn.active { background:rgba(0,212,255,0.1); border-color:var(--accent); color:var(--accent); }
+
+/* POSITION */
+.pos-card { padding:14px 20px; border-bottom:1px solid var(--border); display:none; }
+.pos-card.visible { display:block; }
+.pos-title { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.15em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+.pos-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+.pos-box { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:8px 10px; }
+.pos-val { font-family:var(--mono); font-size:13px; font-weight:700; color:var(--accent); }
+.pos-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:2px; }
+.pos-time { font-family:var(--mono); font-size:11px; color:var(--muted); }
+
+/* EVENT LIST */
+.event-list-wrap { flex:1; overflow-y:auto; padding:14px 20px; display:none; }
+.event-list-wrap.visible { display:block; }
+.el-title { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.15em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:10px; display:flex; justify-content:space-between; }
+.ev { display:flex; gap:10px; padding:6px 4px; border-bottom:1px solid rgba(28,37,53,0.5);
+  cursor:pointer; border-radius:4px; transition:background 0.1s; }
+.ev:hover { background:rgba(255,255,255,0.02); }
+.ev.current { background:rgba(0,212,255,0.08); }
+.ev:last-child { border-bottom:none; }
+.ev-n  { font-family:var(--mono); font-size:11px; color:var(--muted); width:26px; flex-shrink:0; padding-top:1px; }
+.ev-t  { font-family:var(--mono); font-size:11px; font-weight:700; width:72px; flex-shrink:0; }
+.ev-t.START     { color:var(--green);  }
+.ev-t.HEARTBEAT { color:var(--accent); }
+.ev-t.END       { color:var(--danger); }
+.ev-i  { font-size:11px; color:var(--muted); line-height:1.4; }
+.ev-i span { color:var(--text); font-family:var(--mono); }
+
+/* Google Maps dark overrides */
+.gm-style .gm-style-iw-c { background:#121820 !important; border:1px solid #1c2535 !important; border-radius:8px !important; padding:0 !important; }
+.gm-style .gm-style-iw-d { overflow:hidden !important; }
+.gm-style .gm-style-iw-t::after { background:#121820 !important; }
+.gm-ui-hover-effect { filter:invert(1) !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="logo">INTER<span>CEPT</span></div>
+    <div class="project-tag">Session Playback</div>
+  </div>
+</div>
+
+<div class="main">
+  <div><div id="map"></div></div>
+
+  <div class="right-panel">
+
+    <!-- SEARCH BY TRAIN + DATE -->
+    <div class="loader-card">
+      <div class="loader-title">Find Session</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Train Number</label>
+          <input type="text" id="train-input" placeholder="e.g. 8998" value="8998"/>
+        </div>
+        <div class="field">
+          <label>Date (ET)</label>
+          <input type="text" id="date-input" placeholder="MM/DD/YYYY" id="date-input"/>
+        </div>
+      </div>
+      <button class="search-btn" id="search-btn" onclick="searchSessions()">🔍 Find Sessions</button>
+    </div>
+
+    <!-- SESSION PICKER -->
+    <div class="session-picker" id="session-picker">
+      <div class="picker-title">Select a Session</div>
+      <div id="session-options"></div>
+      <button class="load-session-btn" id="load-session-btn" onclick="loadSelectedSession()" disabled>▶ Load Selected Session</button>
+    </div>
+
+    <!-- SESSION INFO -->
+    <div class="session-info" id="session-info">
+      <div class="si-train" id="si-train">Train --</div>
+      <div class="si-grid">
+        <div class="si-box"><div class="si-val green"  id="si-points">--</div><div class="si-label">GPS Points</div></div>
+        <div class="si-box"><div class="si-val accent" id="si-duration">--</div><div class="si-label">Duration</div></div>
+        <div class="si-box"><div class="si-val purple" id="si-distance">--</div><div class="si-label">Distance</div></div>
+        <div class="si-box"><div class="si-val"        id="si-device">--</div><div class="si-label">Device</div></div>
+      </div>
+    </div>
+
+    <!-- PLAYBACK CONTROLS -->
+    <div class="controls" id="controls">
+      <div class="scrubber-labels">
+        <span id="scrub-cur">0:00</span>
+        <span id="scrub-tot">0:00</span>
+      </div>
+      <input type="range" class="scrubber" id="scrubber" min="0" value="0" oninput="scrubTo(this.value)"/>
+      <div class="btn-row">
+        <div class="ctrl-btn" onclick="skipToStart()">⏮</div>
+        <div class="ctrl-btn" onclick="stepBack()">⏪</div>
+        <div class="ctrl-btn" id="play-btn" onclick="togglePlay()">▶ Play</div>
+        <div class="ctrl-btn" onclick="stepFwd()">⏩</div>
+      </div>
+      <div class="speed-row">
+        <span class="speed-label">Speed:</span>
+        <div class="speed-btn active" onclick="setSpeed(600,this)">1×</div>
+        <div class="speed-btn" onclick="setSpeed(300,this)">2×</div>
+        <div class="speed-btn" onclick="setSpeed(100,this)">5×</div>
+        <div class="speed-btn" onclick="setSpeed(50,this)">10×</div>
+      </div>
+    </div>
+
+    <!-- CURRENT POSITION -->
+    <div class="pos-card" id="pos-card">
+      <div class="pos-title">Current Position</div>
+      <div class="pos-grid">
+        <div class="pos-box"><div class="pos-lbl">Latitude</div><div class="pos-val" id="pos-lat">--</div></div>
+        <div class="pos-box"><div class="pos-lbl">Longitude</div><div class="pos-val" id="pos-lon">--</div></div>
+      </div>
+      <div class="pos-time" id="pos-time">--</div>
+    </div>
+
+    <!-- EVENT LIST -->
+    <div class="event-list-wrap" id="event-list-wrap">
+      <div class="el-title">GPS Breadcrumbs <span id="ev-counter">0 / 0</span></div>
+      <div id="event-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- REPLACE YOUR_GOOGLE_MAPS_KEY -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZOnekJdqWpBZxIywkZHFVmzAVcEmjwFI&callback=initMap" async defer></script>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────
+const BASE_URL = "https://us-east1-intercept-staging-enviro-55e4b.cloudfunctions.net";
+const API_KEY  = "PEOE9hJImdGUm2nKgzMmHtAa092BcWD3";
+// ─────────────────────────────────────────────────────────────
+
+const HEADERS = { "Content-Type":"application/json", "x-api-key": API_KEY };
+
+let map, marker, traveledLine;
+let events=[], idx=0, playing=false, timer=null, speed=600;
+let selectedSessionId = null;
+
+// ─── Set today's date as default ─────────────────────────────
+window.addEventListener("load", () => {
+  const today = new Date().toLocaleDateString("en-US", {
+    timeZone:"America/New_York", month:"2-digit", day:"2-digit", year:"numeric"
+  });
+  document.getElementById("date-input").value = today;
+});
+
+const DARK=[
+  {elementType:"geometry",stylers:[{color:"#0a0f15"}]},
+  {elementType:"labels.text.stroke",stylers:[{color:"#0a0f15"}]},
+  {elementType:"labels.text.fill",stylers:[{color:"#4a5a6e"}]},
+  {featureType:"administrative.locality",elementType:"labels.text.fill",stylers:[{color:"#bdbdbd"}]},
+  {featureType:"poi",stylers:[{visibility:"off"}]},
+  {featureType:"road",elementType:"geometry",stylers:[{color:"#1a2332"}]},
+  {featureType:"road.highway",elementType:"geometry",stylers:[{color:"#1e2d42"}]},
+  {featureType:"transit",elementType:"geometry",stylers:[{color:"#1c2535"}]},
+  {featureType:"water",elementType:"geometry",stylers:[{color:"#050d18"}]},
+  {featureType:"landscape",elementType:"geometry",stylers:[{color:"#0d1420"}]}
+];
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center:{lat:40.73,lng:-74.17}, zoom:11,
+    styles:DARK, mapTypeControl:false, streetViewControl:false, fullscreenControl:false
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SEARCH SESSIONS
+// ─────────────────────────────────────────────────────────────
+async function searchSessions() {
+  const trainNumber = document.getElementById("train-input").value.trim();
+  const date        = document.getElementById("date-input").value.trim();
+  if (!trainNumber) { alert("Enter a train number."); return; }
+
+  const btn = document.getElementById("search-btn");
+  btn.disabled=true; btn.textContent="Searching...";
+
+  try {
+    const res  = await fetch(`${BASE_URL}/getSessionByTrain`, {
+      method:"POST", headers:HEADERS,
+      body: JSON.stringify({ trainNumber, date })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "No sessions found.");
+      btn.disabled=false; btn.textContent="🔍 Find Sessions";
+      return;
+    }
+
+    renderSessionPicker(data.sessions);
+
+  } catch(e) {
+    alert("Network error: " + e.message);
+  }
+
+  btn.disabled=false; btn.textContent="🔍 Find Sessions";
+}
+
+function renderSessionPicker(sessions) {
+  const picker = document.getElementById("session-picker");
+  const opts   = document.getElementById("session-options");
+  selectedSessionId = null;
+  document.getElementById("load-session-btn").disabled = true;
+
+  opts.innerHTML = sessions.map(s => `
+    <div class="session-option" id="opt-${s.sessionId}" onclick="selectSession('${s.sessionId}')">
+      <div class="so-train">Train ${s.trainNumber}</div>
+      <div class="so-meta">Started <span>${s.startedAtET||"--"}</span></div>
+      <div class="so-meta">Status <span>${s.status}</span> · HBs <span>${s.heartbeatCount||0}</span> · Line <span>${s.line||"--"}</span></div>
+    </div>`).join("");
+
+  picker.classList.add("visible");
+
+  // Auto-select if only one result
+  if (sessions.length === 1) selectSession(sessions[0].sessionId);
+}
+
+function selectSession(sessionId) {
+  selectedSessionId = sessionId;
+  document.querySelectorAll(".session-option").forEach(el =>
+    el.classList.toggle("selected", el.id === `opt-${sessionId}`));
+  document.getElementById("load-session-btn").disabled = false;
+}
+
+async function loadSelectedSession() {
+  if (!selectedSessionId) return;
+  const btn = document.getElementById("load-session-btn");
+  btn.disabled=true; btn.textContent="Loading...";
+
+  try {
+    const res  = await fetch(`${BASE_URL}/getSessionEvents`, {
+      method:"POST", headers:HEADERS,
+      body: JSON.stringify({ sessionId: selectedSessionId })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.events || data.events.length === 0) {
+      alert(data.error || "No GPS events found.");
+      btn.disabled=false; btn.textContent="▶ Load Selected Session";
+      return;
+    }
+
+    document.getElementById("session-picker").classList.remove("visible");
+    processEvents(data.events);
+
+  } catch(e) {
+    alert("Error: " + e.message);
+  }
+
+  btn.disabled=false; btn.textContent="▶ Load Selected Session";
+}
+
+// ─────────────────────────────────────────────────────────────
+//  PROCESS + DISPLAY
+// ─────────────────────────────────────────────────────────────
+function processEvents(evts) {
+  events = evts.filter(e => e.lat && e.lon);
+  if (!events.length) { alert("No GPS coordinates in this session."); return; }
+  idx = 0;
+
+  const first=events[0], last=events[events.length-1];
+  const durS = Math.round((new Date(last.createdAtUTC||0)-new Date(first.createdAtUTC||0))/1000);
+  const dist = calcDist(events.map(e=>({lat:e.lat,lng:e.lon})));
+
+  document.getElementById("si-train").textContent    = `Train ${first.trainNumber||"--"}`;
+  document.getElementById("si-points").textContent   = events.length;
+  document.getElementById("si-duration").textContent = fmtDur(durS);
+  document.getElementById("si-distance").textContent = `${dist.toFixed(2)} mi`;
+  document.getElementById("si-device").textContent   = (first.deviceSerial||"--").slice(-6);
+
+  ["session-info","controls","pos-card","event-list-wrap"].forEach(id =>
+    document.getElementById(id).classList.add("visible"));
+
+  const sc=document.getElementById("scrubber"); sc.max=events.length-1; sc.value=0;
+  document.getElementById("scrub-tot").textContent = fmtDur(durS);
+
+  // Full faded route
+  new google.maps.Polyline({
+    path:events.map(e=>({lat:e.lat,lng:e.lon})), geodesic:true,
+    strokeColor:"#00d4ff", strokeOpacity:0.2, strokeWeight:3, map
+  });
+
+  // Start marker
+  new google.maps.Marker({ position:{lat:first.lat,lng:first.lon}, map,
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:8,fillColor:"#00e87a",fillOpacity:1,strokeColor:"#fff",strokeWeight:2},
+    title:"Start" });
+
+  // End marker
+  new google.maps.Marker({ position:{lat:last.lat,lng:last.lon}, map,
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:8,fillColor:"#ff4060",fillOpacity:1,strokeColor:"#fff",strokeWeight:2},
+    title:"End" });
+
+  // Fit bounds
+  const bounds=new google.maps.LatLngBounds();
+  events.forEach(e=>bounds.extend({lat:e.lat,lng:e.lon}));
+  map.fitBounds(bounds,{padding:60});
+
+  // Event list
+  document.getElementById("event-list").innerHTML = events.map((e,i)=>`
+    <div class="ev" id="ev-${i}" onclick="goTo(${i})">
+      <div class="ev-n">${i+1}</div>
+      <div class="ev-t ${e.eventType}">${e.eventType}</div>
+      <div class="ev-i"><span>${e.lat.toFixed(5)}, ${e.lon.toFixed(5)}</span><br>${e.createdAtET||""}</div>
+    </div>`).join("");
+
+  goTo(0);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  PLAYBACK
+// ─────────────────────────────────────────────────────────────
+function goTo(i) {
+  if(i<0||i>=events.length) return;
+  idx=i;
+  const e=events[i], pos={lat:e.lat,lng:e.lon};
+
+  if(!marker){
+    marker=new google.maps.Marker({position:pos,map,
+      icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:"#00d4ff",fillOpacity:1,strokeColor:"#fff",strokeWeight:2},
+      zIndex:999});
+  } else { marker.setPosition(pos); }
+
+  if(traveledLine) traveledLine.setMap(null);
+  traveledLine=new google.maps.Polyline({
+    path:events.slice(0,i+1).map(e=>({lat:e.lat,lng:e.lon})),geodesic:true,
+    strokeColor:"#00d4ff",strokeOpacity:0.9,strokeWeight:4,map
+  });
+
+  document.getElementById("pos-lat").textContent  = e.lat.toFixed(6);
+  document.getElementById("pos-lon").textContent  = e.lon.toFixed(6);
+  document.getElementById("pos-time").textContent = e.createdAtET||e.createdAtUTC||"--";
+  document.getElementById("scrubber").value = i;
+  document.getElementById("ev-counter").textContent = `${i+1} / ${events.length}`;
+
+  if(events[0]){
+    const ms=new Date(e.createdAtUTC||0)-new Date(events[0].createdAtUTC||0);
+    document.getElementById("scrub-cur").textContent=fmtDur(Math.round(ms/1000));
+  }
+
+  document.querySelectorAll(".ev").forEach((el,j)=>{
+    el.classList.toggle("current",j===i);
+    if(j===i) el.scrollIntoView({block:"nearest",behavior:"smooth"});
+  });
+
+  map.panTo(pos);
+}
+
+function togglePlay() {
+  playing=!playing;
+  const btn=document.getElementById("play-btn");
+  if(playing){btn.textContent="⏸ Pause";btn.classList.add("active");advance();}
+  else{btn.textContent="▶ Play";btn.classList.remove("active");clearTimeout(timer);}
+}
+function advance() {
+  if(!playing) return;
+  if(idx>=events.length-1){
+    playing=false;
+    document.getElementById("play-btn").textContent="▶ Play";
+    document.getElementById("play-btn").classList.remove("active");
+    return;
+  }
+  goTo(idx+1); timer=setTimeout(advance,speed);
+}
+
+function skipToStart() { if(playing)togglePlay(); goTo(0); }
+function stepBack()    { if(playing)togglePlay(); goTo(Math.max(0,idx-1)); }
+function stepFwd()     { if(playing)togglePlay(); goTo(Math.min(events.length-1,idx+1)); }
+function scrubTo(v)    { if(playing)togglePlay(); goTo(parseInt(v)); }
+function setSpeed(ms,el) {
+  speed=ms;
+  document.querySelectorAll(".speed-btn").forEach(b=>b.classList.remove("active"));
+  el.classList.add("active");
+}
+
+function fmtDur(s) {
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  if(h>0) return `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+  return `${m}:${String(sec).padStart(2,"0")}`;
+}
+
+function calcDist(path) {
+  let t=0;
+  for(let i=1;i<path.length;i++){
+    const R=3958.8,dLat=(path[i].lat-path[i-1].lat)*Math.PI/180,
+      dLon=(path[i].lng-path[i-1].lng)*Math.PI/180,
+      a=Math.sin(dLat/2)**2+Math.cos(path[i-1].lat*Math.PI/180)*Math.cos(path[i].lat*Math.PI/180)*Math.sin(dLon/2)**2;
+    t+=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+  return t;
+}
+</script>
+</body>
+</html>
