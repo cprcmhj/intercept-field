@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intercept — NJT Operations Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:   #0a0e1a;
+    --panel:  #111827;
+    --card:   #1a2235;
+    --border: #1e2d45;
+    --blue:   #1d6fd8;
+    --cyan:   #00d4ff;
+    --amber:  #f59e0b;
+    --red:    #ef4444;
+    --green:  #10b981;
+    --text:   #e2e8f0;
+    --muted:  #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: var(--cyan);
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--muted); font-weight: 400; font-size: 13px; letter-spacing: 1px; margin-left: 12px; }
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .refresh-info { color: var(--muted); font-size: 12px; }
+  .refresh-info strong { color: var(--cyan); }
+  #refresh-progress {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: var(--cyan);
+    transform-origin: left;
+    animation: progress 30s linear infinite;
+  }
+  @keyframes progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    display: flex;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .stat {
+    padding: 10px 24px 10px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    border-right: 1px solid var(--border);
+    margin-right: 24px;
+  }
+  .stat:last-child { border-right: none; }
+  .stat-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--cyan);
+  }
+  .stat-num.amber { color: var(--amber); }
+  .stat-num.green { color: var(--green); }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    display: grid;
+    grid-template-columns: 340px 1fr 320px;
+    grid-template-rows: 1fr;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-title .count {
+    background: var(--border);
+    color: var(--cyan);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .panel-body { flex: 1; overflow-y: auto; }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── MAP ── */
+  #map { width: 100%; height: 100%; }
+
+  /* ── SESSION CARDS ── */
+  .session-card {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: default;
+    transition: background 0.15s;
+  }
+  .session-card:hover { background: var(--card); }
+  .sc-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .sc-train {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--cyan);
+  }
+  .sc-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge-active { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .badge-stale  { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .sc-meta { font-size: 11px; color: var(--muted); line-height: 1.8; }
+  .sc-meta span { color: var(--text); }
+  .sc-pos { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: monospace; }
+
+  /* ── ANALYTICS TABLE ── */
+  .analytics-table { width: 100%; border-collapse: collapse; }
+  .analytics-table th {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--panel);
+  }
+  .analytics-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+    font-size: 12px;
+  }
+  .analytics-table tr:hover td { background: var(--card); }
+  .num-cell { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 600; text-align: right; }
+  .num-cell.active { color: var(--cyan); }
+  .num-cell.warn   { color: var(--amber); }
+
+  /* ── FLAGGED CARDS ── */
+  .flagged-card {
+    margin: 10px 12px;
+    padding: 12px;
+    background: rgba(239,68,68,0.05);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 6px;
+  }
+  .fc-train {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--red);
+    margin-bottom: 4px;
+  }
+  .fc-reason { font-size: 11px; color: var(--amber); margin-bottom: 6px; }
+  .fc-meta { font-size: 10px; color: var(--muted); line-height: 1.7; }
+  .fc-meta span { color: var(--text); }
+  .mark-reviewed-btn {
+    margin-top: 8px;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.3);
+    color: var(--green);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Barlow', sans-serif;
+    transition: background 0.15s;
+  }
+  .mark-reviewed-btn:hover { background: rgba(16,185,129,0.2); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 10px; }
+  .empty-text { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="refresh-progress"></div>
+
+<header>
+  <div class="logo">INTERCEPT <span>NJT Operations Dashboard</span></div>
+  <div class="header-right">
+    <div class="refresh-info">Last refresh: <strong id="last-refresh-time">--:--:--</strong></div>
+    <div class="refresh-info">Auto-refresh every <strong>30s</strong></div>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-num" id="stat-active">--</div>
+    <div class="stat-label">Active Sessions</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num amber" id="stat-flagged">--</div>
+    <div class="stat-label">Flagged</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num green" id="stat-trains">--</div>
+    <div class="stat-label">Trains Tracked</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" id="stat-devices">--</div>
+    <div class="stat-label">Devices Online</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- LEFT: Active Sessions -->
+  <div class="panel">
+    <div class="panel-title">
+      Active Sessions
+      <span class="count" id="session-count">0</span>
+    </div>
+    <div class="panel-body" id="sessions-list">
+      <div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">Loading sessions…</div></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Map -->
+  <div id="map"></div>
+
+  <!-- RIGHT: Flagged + Analytics -->
+  <div style="display:flex;flex-direction:column;overflow:hidden;border-left:1px solid var(--border);">
+
+    <!-- Flagged -->
+    <div class="panel" style="flex:1;border-right:none;">
+      <div class="panel-title">
+        Flagged Sessions
+        <span class="count" id="flagged-count">0</span>
+      </div>
+      <div class="panel-body" id="flagged-list">
+        <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">No flagged sessions</div></div>
+      </div>
+    </div>
+
+    <!-- Analytics -->
+    <div class="panel" style="flex:1;border-right:none;border-top:1px solid var(--border);">
+      <div class="panel-title">Train Analytics</div>
+      <div class="panel-body">
+        <table class="analytics-table">
+          <thead>
+            <tr>
+              <th>Train</th>
+              <th style="text-align:right">Sessions</th>
+              <th style="text-align:right">Flagged</th>
+            </tr>
+          </thead>
+          <tbody id="analytics-body">
+            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Google Maps -->
+<script>
+// ─────────────────────────────────────────────────────────────
+//  CONFIG — update these two values
+// ─────────────────────────────────────────────────────────────
+const BASE_URL = "https://us-east1-intercept-staging-enviro-55e4b.cloudfunctions.net";
+const API_KEY_HDR = "PEOE9hJImdGUm2nKgzMmHtAa092BcWD3";   // x-api-key value
+const MAPS_KEY    = "AIzaSyBZOnekJdqWpBZxIywkZHFVmzAVcEmjwFI"; // Google Maps JS API key
+const REFRESH_MS  = 30000;
+
+const HEADERS = { "Content-Type": "application/json", "x-api-key": API_KEY_HDR };
+
+// NJT Rail Lines (simplified waypoints per line)
+const NJT_LINES = [
+  { name: "NEC/NJCL",         color: "#1d6fd8", coords: [[40.7506,-74.0023],[40.7282,-74.0658],[40.6555,-74.1222],[40.5728,-74.1540],[40.5018,-74.2643],[40.4426,-74.3604],[40.3648,-74.4380],[40.2201,-74.5577],[40.1154,-74.7138]] },
+  { name: "Raritan Valley",   color: "#f59e0b", coords: [[40.7282,-74.0658],[40.6572,-74.2014],[40.5723,-74.3290],[40.4842,-74.4345],[40.4480,-74.5046],[40.4160,-74.5743],[40.3710,-74.6502],[40.3053,-74.7493]] },
+  { name: "Morris & Essex",   color: "#a855f7", coords: [[40.7282,-74.0658],[40.7487,-74.1721],[40.7678,-74.2368],[40.7989,-74.3001],[40.8143,-74.3837],[40.8226,-74.4549],[40.8513,-74.5301],[40.8685,-74.6285]] },
+  { name: "Main/Bergen",      color: "#ef4444", coords: [[40.7506,-74.0023],[40.7886,-74.0140],[40.8236,-74.0341],[40.8600,-74.0612],[40.8943,-74.0820],[40.9280,-74.1101],[40.9653,-74.1430],[41.0123,-74.1702]] },
+  { name: "Port Jervis",      color: "#f97316", coords: [[40.7506,-74.0023],[40.7886,-74.0140],[40.9653,-74.1430],[41.0633,-74.2456],[41.1281,-74.3445],[41.2012,-74.4290],[41.3142,-74.5456],[41.3719,-74.6923]] },
+  { name: "Atlantic City",    color: "#06b6d4", coords: [[39.9526,-75.1652],[39.9142,-74.9815],[39.8874,-74.8292],[39.8624,-74.6895],[39.8560,-74.5293],[39.3613,-74.4229]] },
+];
+
+let map, markers = {}, polylines = [];
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 40.58, lng: -74.35 },
+    zoom: 9,
+    mapTypeId: "roadmap",
+    styles: [
+      { elementType: "geometry",            stylers: [{ color: "#0d1b2a" }] },
+      { elementType: "labels.text.fill",    stylers: [{ color: "#64748b" }] },
+      { elementType: "labels.text.stroke",  stylers: [{ color: "#0a0e1a" }] },
+      { featureType: "road",         elementType: "geometry",         stylers: [{ color: "#1a2235" }] },
+      { featureType: "road.highway", elementType: "geometry",         stylers: [{ color: "#1e2d45" }] },
+      { featureType: "water",        elementType: "geometry",         stylers: [{ color: "#060d1a" }] },
+      { featureType: "poi",          stylers: [{ visibility: "off" }] },
+      { featureType: "transit",      stylers: [{ visibility: "off" }] },
+    ]
+  });
+
+  // Draw NJT lines
+  NJT_LINES.forEach(line => {
+    const poly = new google.maps.Polyline({
+      path: line.coords.map(c => ({ lat: c[0], lng: c[1] })),
+      geodesic: true,
+      strokeColor: line.color,
+      strokeOpacity: 0.7,
+      strokeWeight: 3,
+      map
+    });
+    polylines.push(poly);
+  });
+}
+
+function updateMarkers(sessions) {
+  const seen = new Set();
+  sessions.forEach(s => {
+    if (!s.lastLat || !s.lastLon) return;
+    seen.add(s.sessionId);
+    const pos = { lat: s.lastLat, lng: s.lastLon };
+    const isStale = s.status === "stale";
+    if (markers[s.sessionId]) {
+      markers[s.sessionId].setPosition(pos);
+    } else {
+      markers[s.sessionId] = new google.maps.Marker({
+        position: pos, map,
+        title: `Train ${s.trainNumber}`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: isStale ? "#f59e0b" : "#00d4ff",
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 1.5
+        }
+      });
+      const iw = new google.maps.InfoWindow({
+        content: `<div style="font-family:Barlow,sans-serif;background:#111827;color:#e2e8f0;padding:10px;border-radius:6px;min-width:160px">
+          <div style="font-size:16px;font-weight:700;color:#00d4ff">Train ${s.trainNumber}</div>
+          <div style="font-size:11px;color:#64748b">Device: ${s.deviceSerial}</div>
+          <div style="font-size:11px;color:#64748b">Car: ${s.carNumber || '--'}</div>
+          <div style="font-size:11px;color:#64748b">Status: ${s.status}</div>
+        </div>`
+      });
+      markers[s.sessionId].addListener("click", () => iw.open(map, markers[s.sessionId]));
+    }
+  });
+
+  // Remove markers for ended sessions
+  Object.keys(markers).forEach(id => {
+    if (!seen.has(id)) { markers[id].setMap(null); delete markers[id]; }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RENDER SESSIONS
+// ─────────────────────────────────────────────────────────────
+function renderSessions(sessions) {
+  document.getElementById("stat-active").textContent = sessions.length;
+  document.getElementById("session-count").textContent = sessions.length;
+  document.getElementById("stat-devices").textContent = sessions.length;
+  const list = document.getElementById("sessions-list");
+  if (!sessions.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No active sessions</div></div>`;
+    return;
+  }
+  list.innerHTML = sessions.map(s => {
+    const isStale = s.status === "stale";
+    const started = s.startedAtET || s.startedAt || "--";
+    return `
+      <div class="session-card">
+        <div class="sc-top">
+          <div class="sc-train">Train ${s.trainNumber}</div>
+          <div class="sc-badge ${isStale ? "badge-stale" : "badge-active"}">${isStale ? "STALE" : "ACTIVE"}</div>
+        </div>
+        <div class="sc-meta">
+          Device <span>${s.deviceSerial}</span><br>
+          Car <span>${s.carNumber || "--"}</span><br>
+          Started <span>${started}</span>
+        </div>
+        ${s.lastLat ? `<div class="sc-pos">${s.lastLat.toFixed(4)}, ${s.lastLon.toFixed(4)}</div>` : ""}
+      </div>`;
+  }).join("");
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RENDER ANALYTICS
+// ─────────────────────────────────────────────────────────────
+function renderAnalytics(trains) {
+  document.getElementById("stat-trains").textContent = trains.length;
+  const tbody = document.getElementById("analytics-body");
+  if (!trains.length) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">No data</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = trains.map(t => `
+    <tr>
+      <td>Train ${t.trainNumber}</td>
+      <td class="num-cell active">${t.totalSessions || 0}</td>
+      <td class="num-cell warn">${t.superseded || 0}</td>
+    </tr>`).join("");
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RENDER FLAGGED
+// ─────────────────────────────────────────────────────────────
+function renderFlagged(sessions) {
+  document.getElementById("stat-flagged").textContent = sessions.length;
+  document.getElementById("flagged-count").textContent = sessions.length;
+  const list = document.getElementById("flagged-list");
+  if (!sessions.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">No flagged sessions pending review</div></div>`;
+    return;
+  }
+  list.innerHTML = sessions.map(s => `
+    <div class="flagged-card" id="flag-${s.sessionId}">
+      <div class="fc-train">Train ${s.trainNumber}</div>
+      <div class="fc-reason">${s.closeReason || "--"}</div>
+      <div class="fc-meta">Device <span>${s.deviceSerial}</span></div>
+      <div class="fc-meta">Type <span>${s.closeType || "--"}</span></div>
+      <div class="fc-meta">Started <span>${s.startedAtET || s.startedAt || "--"}</span></div>
+      <div class="fc-meta">Closed <span>${s.closedAtET || s.closedAt || "--"}</span></div>
+      <div class="fc-meta">Last pos <span>${s.lastLat ? s.lastLat.toFixed(4) : "--"}, ${s.lastLon ? s.lastLon.toFixed(4) : "--"}</span></div>
+      <button class="mark-reviewed-btn" onclick="markReviewed('${s.sessionId}')">✓ Mark as Reviewed</button>
+    </div>`).join("");
+}
+
+async function markReviewed(sessionId) {
+  const btn = document.querySelector(`#flag-${sessionId} .mark-reviewed-btn`);
+  if (btn) { btn.disabled = true; btn.textContent = "Marking…"; }
+  try {
+    await fetch(`${BASE_URL}/markReviewed`, {
+      method: "POST", headers: HEADERS,
+      body: JSON.stringify({ sessionId, reviewedBy: "ops-dashboard" })
+    });
+    const card = document.getElementById(`flag-${sessionId}`);
+    if (card) { card.style.opacity = "0.4"; card.style.pointerEvents = "none"; if (btn) btn.textContent = "✓ Reviewed"; }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = "✗ Failed — retry"; }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  FETCH ALL
+// ─────────────────────────────────────────────────────────────
+async function fetchAll() {
+  const prog = document.getElementById("refresh-progress");
+  prog.style.animation = "none"; prog.offsetHeight; prog.style.animation = "";
+  try {
+    const [sRes, aRes, fRes] = await Promise.all([
+      fetch(`${BASE_URL}/activeSessions`,  { headers: HEADERS }).then(r => r.json()),
+      fetch(`${BASE_URL}/analytics`,       { headers: HEADERS }).then(r => r.json()),
+      fetch(`${BASE_URL}/flaggedSessions`, { headers: HEADERS }).then(r => r.json())
+    ]);
+    const sessions = sRes.sessions || [];
+    renderSessions(sessions);
+    renderAnalytics(aRes.trains  || []);
+    renderFlagged(fRes.sessions  || []);
+    if (map) updateMarkers(sessions);
+    document.getElementById("last-refresh-time").textContent =
+      new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false });
+  } catch(e) {
+    console.error(e);
+    document.getElementById("last-refresh-time").textContent = "Error — retrying…";
+  }
+}
+</script>
+
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBZOnekJdqWpBZxIywkZHFVmzAVcEmjwFI&callback=initMap"
+  async defer></script>
+
+<script>
+  // Start fetching after Google Maps loads (initMap fires first via callback)
+  window.addEventListener("load", () => {
+    setTimeout(fetchAll, 800);
+    setInterval(fetchAll, REFRESH_MS);
+  });
+</script>
+
+</body>
+</html>
